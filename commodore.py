@@ -222,6 +222,7 @@ def execution_agent(objective: str, task: str, previous_result: str = None, comm
     prompt = f"""
     You are an AI that is part of an overall AI system who reads a given task on the following objective: {objective}.
     Using the task, generate an output task that conforms to the given constraints, capabilities, commands, and previous tasks.
+    Do not add information to your output which is not in the given task.
     Take into account these previously completed tasks: {context}.
     Use the commands available to the system to guide your response: {commands_generator.commands}.
     Your task: {task}
@@ -282,6 +283,7 @@ Do not omit any piece of this response format or add any text other than the res
 The response should be all on one line.
 These are your available commands:
 {commands_generator.commands}.
+Your response must adhere exectly to the following constraints and capabilities: {constraints_capabilities}
 You MUST use one command exclusively from the list provided above.
 If the desired action does not seem to use a command available to you, use the command no_command.
 Argument keys must be listed exactly as specified.
@@ -400,6 +402,7 @@ while True:
                 # Best solution is to restart the command loop...
                 print(f"{bcolors.WARNING}Something went wrong... restarting command loop{bcolors.ENDC}")
                 command_error = f"Command {new_command} returned: {command_return}"
+                print(command_error)
                 previous_result = result
                 command_loop_count += 1
                 time.sleep(1)

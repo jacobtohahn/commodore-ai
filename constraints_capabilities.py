@@ -43,3 +43,6 @@ Long Term Memory management using files, which you should create often
 capabilities_generator.add_capability("""
 Ability to browse links provided by a google search
 """)
+capabilities_generator.add_capability("""
+A list of commands to help complete tasks
+""")
