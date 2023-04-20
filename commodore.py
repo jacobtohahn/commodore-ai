@@ -79,8 +79,7 @@ assert INITIAL_TASK, "INITIAL_TASK environment variable is missing from .env. Ca
 # Print the AI configuration:
 print(f"{bcolors.OKCYAN}Current AI configuration:{bcolors.ENDC}")
 print(f"{COMMODORE_NAME} is an AI based on {OPENAI_API_MODEL} designed to {OBJECTIVE}.\n"
-      f"To do this, it will first start by performing the following task:\n"
-      f"{INITIAL_TASK}")
+      f"To do this, it will first start by performing the following task:")
 
 # Configure OpenAI and Pinecone
 openai.api_key = OPENAI_API_KEY
@@ -116,6 +115,9 @@ class SingleTaskListStorage:
 
     def popleft(self):
         return self.tasks.popleft()
+    
+    def read_current(self):
+        return self.tasks[0]
 
     def is_empty(self):
         return False if self.tasks else True
@@ -204,7 +206,7 @@ def openai_call(
             break
 
 # Define the execution agent
-def execution_agent(objective: str, task: str) -> str:
+def execution_agent(objective: str, task: str, previous_result: str = None, command_error: str = None) -> str:
     """
     Executes a task based on the given objective and previous context.
 
@@ -230,7 +232,12 @@ def execution_agent(objective: str, task: str) -> str:
     Only one subtask, like searching the internet or writing to a file, should be included in your response.
     "Conduct research" refers to a google search.
     For example: "Search the internet for..." or "Browse the webpage at the URL..."
-    Response:"""
+    """
+    if previous_result and command_error:
+        prompt += f"The last time you generated a response, it was used to create a command which returned an error: {command_error}.\n"
+        prompt += f"Your last generated response was: {previous_result}.\n"
+        prompt += "Modifiy your response so that it does not generate a command which results in an error.\n"
+    prompt += "Response:"
     return openai_call(prompt, max_tokens=2000)
 
 # Get the top n completed tasks for the objective
@@ -347,46 +354,64 @@ while True:
         for t in tasks_storage.get_task_names():
             print(" • "+t)
 
-        # Step 1: Pull the first incomplete task
-        task = tasks_storage.popleft()
+        # Step 1: Get the first incomplete task
+        task = tasks_storage.read_current()
         print("\033[92m\033[1m" + "\n*****NEXT TASK*****\n" + "\033[0m\033[0m")
         print(task['task_name'])
+        
+        command_loop_count = 0
+        command_error = None
+        previous_result = None
+        # Command Loop
+        while True:
+            if command_loop_count >= 3:
+                print(f"{bcolors.FAIL}*****TOO MANY COMMAND ERRORS*****{bcolors.ENDC}")
+                print("Quitting...")
+                exit()
+            # Send to execution function to complete the task based on the context
+            result = execution_agent(OBJECTIVE, task["task_name"], previous_result, command_error)
+            print("\033[93m\033[1m" + "\n*****ACTION*****\n" + "\033[0m\033[0m")
+            print(result)
 
-        # Send to execution function to complete the task based on the context
-        result = execution_agent(OBJECTIVE, task["task_name"])
-        print("\033[93m\033[1m" + "\n*****ACTION*****\n" + "\033[0m\033[0m")
-        print(result)
+            # Generate keywords
+            keywords = keyword_agent(result)
+            print("\033[93m\033[1m" + "\n*****KEYWORDS*****\n" + "\033[0m\033[0m")
+            print(keywords)
 
-        # Generate keywords
-        keywords = keyword_agent(result)
-        print("\033[93m\033[1m" + "\n*****KEYWORDS*****\n" + "\033[0m\033[0m")
-        print(keywords)
+            # Step 2: Send natural language result to command translator with keywords
+            command = command_translation_agent(result, task, keywords)
+            print("\033[93m\033[1m" + "\n*****COMMAND*****\n" + "\033[0m\033[0m")
+            print(command)
 
-        # Step 2: Send natural language result to command translator with keywords
-        command = command_translation_agent(result, task, keywords)
-        print("\033[93m\033[1m" + "\n*****COMMAND*****\n" + "\033[0m\033[0m")
-        print(command)
-
-        # Step 3: Execute command
-        loop_count = 0
-        command_return = execute_command(command)
-        while (str(command_return).startswith("COMMAND_ERROR:") | str(command_return).startswith("ERROR:")) and loop_count < 3:
-            new_command = command_translation_agent(f"""
-            The last command you entered, {command},
-            which was generated based on the following request: {result},
-            did not execute correctly and returned this error: {command_return}
-            Please regenerate the command with the required modifications based on the commands list to fix the error.
-            """, task, keywords)
-            command_return = execute_command(new_command)
-            loop_count += 1
-        if loop_count >= 3:
-            print("***************STUCK IN LOOP***************")
-            print("EXITING...")
-            exit()
-        else:
-            command_result = command_return
-        print("\033[93m\033[1m" + "\n*****COMMAND RESULT*****\n" + "\033[0m\033[0m")
+            # Step 3: Execute command
+            loop_count = 0
+            command_return = execute_command(command)
+            while (str(command_return).startswith("COMMAND_ERROR:") | str(command_return).startswith("ERROR:")) and loop_count < 3:
+                new_command = command_translation_agent(f"""
+                The last command you entered, {command},
+                which was generated based on the following request: {result},
+                did not execute correctly and returned this error: {command_return}
+                Please regenerate the command with the required modifications based on the commands list to fix the error.
+                """, task, keywords)
+                command_return = execute_command(new_command)
+                loop_count += 1
+            if loop_count >= 2:
+                # At this point it can be assumed something was wrong with the command translation input
+                # Best solution is to restart the command loop...
+                print(f"{bcolors.WARNING}Something went wrong... restarting command loop{bcolors.ENDC}")
+                command_error = f"Command {new_command} returned: {command_return}"
+                previous_result = result
+                command_loop_count += 1
+                time.sleep(1)
+                continue
+            else:
+                command_result = command_return
+                break
+        print(f"{bcolors.OKGREEN}{bcolors.BOLD}\n*****COMMAND RESULT*****\n{bcolors.ENDC}")
         print(command_result)
+
+        # Now that we know the task was completed successfully, we can remove it from the list
+        tasks_storage.popleft()
 
         # Step 3: Enrich result and command and store in Pinecone
         ### NOT FINISHED ###
