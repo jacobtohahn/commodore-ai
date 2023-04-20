@@ -1,6 +1,18 @@
 from commands import commands_generator
-from command_scripts.filesystem import *
-from command_scripts.internet import *
+from command_scripts.filesystem import(
+    read_file,
+    write_file,
+    append_file,
+    delete_file,
+    create_directory,
+    remove_directory,
+    move_directory,
+    list_files,
+)
+from command_scripts.internet import(
+    google,
+    browse_website,
+)
 
 import ast
 
