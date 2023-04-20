@@ -11,7 +11,7 @@ import os
 def create_chat_completion(
     messages: list,  # type: ignore
     model: str | None = None,
-    temperature: float = os.getenv("OPENAI_TEMPERATURE", 0.0),
+    temperature: float = float(os.getenv("OPENAI_TEMPERATURE", 0.0)),
     max_tokens: int | None = None,
 ) -> str:
     """Create a chat completion using the OpenAI API

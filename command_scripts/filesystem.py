@@ -17,8 +17,10 @@ def format_filename(filename):
     # Convert the file name to lowercase
     formatted_filename = file_name.lower()
     
-    # # Rejoin the directory and file name components to create the full path
-    # formatted_filename = os.path.join(directory, file_name)
+    # Rejoin the directory and file name components to create the full path
+    if directory == "/":
+        return formatted_filename
+    formatted_filename = os.path.join(directory, file_name)
     
     return formatted_filename
 
@@ -109,6 +111,8 @@ def read_file(filename: str) -> str:
         else:
             with open(filepath, "r", encoding='utf-8') as f:
                 content = f.read()
+            if content == "":
+                return "File contains no text"
             return content
     except Exception as e:
         return handle_file_error("read", filename, str(e))

@@ -218,15 +218,17 @@ def execution_agent(objective: str, task: str) -> str:
     
     context = context_agent(query=objective, top_results_num=5)
     prompt = f"""
-    You are an AI that is part of an overall AI system who determines a single task to be executed based on the following objective: {objective}.
+    You are an AI that is part of an overall AI system who reads a given task on the following objective: {objective}.
+    Using the task, generate an output task that conforms to the given constraints, capabilities, commands, and previous tasks.
     Take into account these previously completed tasks: {context}.
-    Consider the commands available to the system: {commands_generator.commands}.
+    Use the commands available to the system to guide your response: {commands_generator.commands}.
     Your task: {task}
-    Your response must adhere exectly to the following constraints and capabilities:
+    Your response must adhere to the following constraints and capabilities:
     {constraints_capabilities}
     Do not generate a command.
     Only one action should be performed. Do not use the word "and" to split up actions.
     Only one subtask, like searching the internet or writing to a file, should be included in your response.
+    "Conduct research" refers to a google search.
     For example: "Search the internet for..." or "Browse the webpage at the URL..."
     Response:"""
     return openai_call(prompt, max_tokens=2000)
@@ -247,21 +249,23 @@ def context_agent(query: str, top_results_num: int):
     query_embedding = get_ada_embedding(query)
     results = index.query(query_embedding, top_k=top_results_num, include_metadata=True, namespace=OBJECTIVE_PINECONE_COMPAT)
     sorted_results = sorted(results.matches, key=lambda x: x.score, reverse=True)
-    return [(str(item.metadata["task"])) for item in sorted_results]
+    return [(str(item.metadata)) for item in sorted_results]
 
 def keyword_agent(input: str):
     """
     Generates relevant keywords based on an input string.
     """
     prompt = f"""
-    You are an AI who generates relevant single keywords based on an input prompt.
+    You are an AI who generates relevant keywords based on an action being performed by an input prompt.
+    Understand the overall single task of the input prompt and generate keywords based on it. 
+    If there are multiple actions performed in the input, only focus on the first action and ignore the rest.
     When generating your keywords, ensure they are related to these commands: {commands_generator.commands}.
     Your prompt: {input}
     Format your response as an array of individual keywords. Only include one word per array index.
     Response:"""
     return openai_call(prompt, max_tokens=2000)
 
-def command_translation_agent(command_prompt: str, keywords: str) -> str:
+def command_translation_agent(command_prompt: str, task: str, keywords: str) -> str:
     context = context_agent(query=command_prompt, top_results_num=5)
     prompt = f"""You are an AI responsible for translating a desired action into a single command of a specified output format.
 This one command should only perform one action.
@@ -275,10 +279,12 @@ You MUST use one command exclusively from the list provided above.
 If the desired action does not seem to use a command available to you, use the command no_command.
 Argument keys must be listed exactly as specified.
 Take into account these previously completed tasks: {context}.
+"Search the internet" refers to the "google" command.
 If the action to translate includes a website URL, use the "browse_website" command. "Read article" refers to an google search or webpage browse while "Read file" refers to a filesystem command.
 If the action contains multiple steps, only translate the first task.
-The desired action to translate into the response format is: {command_prompt}
-Consider these keywords: {keywords}.
+The desired action to translate into the response format is: {command_prompt}.
+This action was generated based on this task: {task}.
+Use these keywords to help you choose a command: {keywords}.
 Response:"""
     return openai_call(prompt, max_tokens=2000)
 
@@ -289,12 +295,11 @@ def task_creation_agent(
     prompt = f"""
     You are a task creation AI for an overall AI system that uses the result of an execution agent to create new tasks, each performing a single action, with the following objective: {objective},
     Take into account these previously completed tasks: {context}.
-    The last completed task has the result: {result}.
+    The last completed task had the result: {result}.
     This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}.
     Consider the commands available to the system: {commands_generator.commands}.
     Your response must adhere exectly to the following constraints and capabilities: {constraints_capabilities}
     Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks.
-    Only one action should be performed per task.
     Include specifics and URLs in your response if applicable. Be detailed.
     If you reference a website, you MUST include the URL in your response.
     Return the tasks as an array. 
@@ -307,10 +312,10 @@ def prioritization_agent():
     task_names = tasks_storage.get_task_names()
     next_task_id = tasks_storage.next_task_id()
     prompt = f"""
-    You are a task prioritization AI tasked with cleaning the formatting of and reprioritizing the following tasks: {task_names}.
+    You are a task formatting AI tasked with cleaning the formatting of the following tasks: {task_names}.
     Consider the ultimate objective of your team:{OBJECTIVE}.
-    Combine and remove redundant tasks.
     Retain all task specifics and details.
+    Split tasks with multiple steps into individual tasks with one step per task, unless the tasks are to create and write a file. Those two actions are one step.
     Return the result as a numbered list, like:
     #. First task
     #. Second task
@@ -358,29 +363,26 @@ while True:
         print(keywords)
 
         # Step 2: Send natural language result to command translator with keywords
-        command = command_translation_agent(result, keywords)
+        command = command_translation_agent(result, task, keywords)
         print("\033[93m\033[1m" + "\n*****COMMAND*****\n" + "\033[0m\033[0m")
         print(command)
 
         # Step 3: Execute command
         loop_count = 0
         command_return = execute_command(command)
-        while (str(command_return).startswith("COMMAND_ERROR:") | str(command_return).startswith("ERROR: INVALID ARGUMENTS")) and loop_count < 3:
+        while (str(command_return).startswith("COMMAND_ERROR:") | str(command_return).startswith("ERROR:")) and loop_count < 3:
             new_command = command_translation_agent(f"""
             The last command you entered, {command},
             which was generated based on the following request: {result},
             did not execute correctly and returned this error: {command_return}
             Please regenerate the command with the required modifications based on the commands list to fix the error.
-            """, keywords)
+            """, task, keywords)
             command_return = execute_command(new_command)
             loop_count += 1
         if loop_count >= 3:
             print("***************STUCK IN LOOP***************")
             print("EXITING...")
             exit()
-        elif command_return == "ERROR: COMMAND NOT FOUND":
-            command_result = """You this action is outside of your constraints or capabilities!\n
-            Ensure you are working within your constraints and capabilities and try again."""
         else:
             command_result = command_return
         print("\033[93m\033[1m" + "\n*****COMMAND RESULT*****\n" + "\033[0m\033[0m")
@@ -400,12 +402,11 @@ while True:
             [(result_id, vector, {"task": task["task_name"], "result": f"Command: {command}\nCommand result: {command_result}"})],
       namespace=OBJECTIVE_PINECONE_COMPAT
         )
-        #print(enriched_result)
 
         # Step 3: Create new tasks and reprioritize task list
         new_tasks = task_creation_agent(
             OBJECTIVE,
-            enriched_result,
+            result,
             task["task_name"],
             tasks_storage.get_task_names(),
         )
