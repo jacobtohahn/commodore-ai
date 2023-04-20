@@ -42,7 +42,7 @@ def list_files(path: str = WORKSPACE_PATH, level: int = 0) -> str:
         str: The filesystem representation as a formatted string.
     """
     if not os.path.exists(path):
-        return ""
+        return "COMMAND_ERROR: Directory does not exist, cannot list files"
 
     representation = ""
     entries = sorted(os.listdir(path))
@@ -59,6 +59,8 @@ def list_files(path: str = WORKSPACE_PATH, level: int = 0) -> str:
                 representation += list_files(entry_path, level + 1)
                 representation += "}, "
 
+    if representation.strip().rstrip(',') == "":
+        return "No files found."
     return representation.strip().rstrip(',')
 
 def find_file(filename: str, path: str = WORKSPACE_PATH) -> str:
@@ -142,7 +144,7 @@ def write_file(filename: str, text: str) -> str:
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(text)
-        return f"File {filename} written to successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
+        return f"File {formatted_filename} written to successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
     except Exception as e:
         return handle_file_error("write", filename, str(e))
     
