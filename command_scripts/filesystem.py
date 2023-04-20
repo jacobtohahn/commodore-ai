@@ -113,7 +113,7 @@ def read_file(filename: str) -> str:
                 content = f.read()
             if content == "":
                 return "File contains no text"
-            return content
+            return f"File {formatted_filename} contains: {content}"
     except Exception as e:
         return handle_file_error("read", filename, str(e))
 
