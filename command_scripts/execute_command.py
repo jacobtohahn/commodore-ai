@@ -7,7 +7,7 @@ import ast
 def execute_command(command: str) -> str:
     try:
         command = ast.literal_eval(command)
-    except(SyntaxError):
+    except(SyntaxError, ValueError):
         return("ERROR: INVALID ARGUMENTS")
     command_name = list(command.keys())[0]
     arguments = list(command.values())[0]

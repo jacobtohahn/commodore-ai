@@ -15,10 +15,10 @@ def format_filename(filename):
     file_name = file_name.replace(' ', '_')
     
     # Convert the file name to lowercase
-    file_name = file_name.lower()
+    formatted_filename = file_name.lower()
     
-    # Rejoin the directory and file name components to create the full path
-    formatted_filename = os.path.join(directory, file_name)
+    # # Rejoin the directory and file name components to create the full path
+    # formatted_filename = os.path.join(directory, file_name)
     
     return formatted_filename
 

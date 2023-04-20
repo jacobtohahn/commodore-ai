@@ -48,7 +48,7 @@ assert (
 ), "PINECONE_ENVIRONMENT environment variable is missing from .env"
 
 # Get the AI's name
-COMMODORE_NAME = os.getenv("AI_NAME", "Commodore")
+COMMODORE_NAME = os.getenv("COMMODORE_NAME", "Commodore")
 
 # Get Main Objective
 OBJECTIVE = os.getenv("OBJECTIVE", "Research nuclear fusion")
@@ -79,7 +79,7 @@ assert INITIAL_TASK, "INITIAL_TASK environment variable is missing from .env. Ca
 # Print the AI configuration:
 print(f"{bcolors.OKCYAN}Current AI configuration:{bcolors.ENDC}")
 print(f"{COMMODORE_NAME} is an AI based on {OPENAI_API_MODEL} designed to {OBJECTIVE}.\n"
-      f" To do this, it will first start by performing the following task:\n"
+      f"To do this, it will first start by performing the following task:\n"
       f"{INITIAL_TASK}")
 
 # Configure OpenAI and Pinecone
@@ -218,10 +218,11 @@ def execution_agent(objective: str, task: str) -> str:
     
     context = context_agent(query=objective, top_results_num=5)
     prompt = f"""
-    You are an AI who determines a single task to be executed based on the following objective: {objective}.
+    You are an AI that is part of an overall AI system who determines a single task to be executed based on the following objective: {objective}.
     Take into account these previously completed tasks: {context}.
+    Consider the commands available to the system: {commands_generator.commands}.
     Your task: {task}
-    Your response must be adhere exectly to the following constraints and capabilities:
+    Your response must adhere exectly to the following constraints and capabilities:
     {constraints_capabilities}
     Do not generate a command.
     Only one action should be performed. Do not use the word "and" to split up actions.
@@ -248,7 +249,19 @@ def context_agent(query: str, top_results_num: int):
     sorted_results = sorted(results.matches, key=lambda x: x.score, reverse=True)
     return [(str(item.metadata["task"])) for item in sorted_results]
 
-def command_translation_agent(command_prompt: str) -> str:
+def keyword_agent(input: str):
+    """
+    Generates relevant keywords based on an input string.
+    """
+    prompt = f"""
+    You are an AI who generates relevant single keywords based on an input prompt.
+    When generating your keywords, ensure they are related to these commands: {commands_generator.commands}.
+    Your prompt: {input}
+    Format your response as an array of individual keywords. Only include one word per array index.
+    Response:"""
+    return openai_call(prompt, max_tokens=2000)
+
+def command_translation_agent(command_prompt: str, keywords: str) -> str:
     context = context_agent(query=command_prompt, top_results_num=5)
     prompt = f"""You are an AI responsible for translating a desired action into a single command of a specified output format.
 This one command should only perform one action.
@@ -262,10 +275,11 @@ You MUST use one command exclusively from the list provided above.
 If the desired action does not seem to use a command available to you, use the command no_command.
 Argument keys must be listed exactly as specified.
 Take into account these previously completed tasks: {context}.
-If the action to translate includes a website URL, use the "browse_website" command instead of "read_file".
+If the action to translate includes a website URL, use the "browse_website" command. "Read article" refers to an google search or webpage browse while "Read file" refers to a filesystem command.
 If the action contains multiple steps, only translate the first task.
-The desired action to translate into the response format is:
-{command_prompt}"""
+The desired action to translate into the response format is: {command_prompt}
+Consider these keywords: {keywords}.
+Response:"""
     return openai_call(prompt, max_tokens=2000)
 
 def task_creation_agent(
@@ -273,13 +287,18 @@ def task_creation_agent(
 ):
     context = context_agent(query=objective, top_results_num=5)
     prompt = f"""
-    You are a task creation AI that uses the result of an execution agent to create new tasks, each performing a single action, with the following objective: {objective},
+    You are a task creation AI for an overall AI system that uses the result of an execution agent to create new tasks, each performing a single action, with the following objective: {objective},
     Take into account these previously completed tasks: {context}.
     The last completed task has the result: {result}.
     This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}.
+    Consider the commands available to the system: {commands_generator.commands}.
+    Your response must adhere exectly to the following constraints and capabilities: {constraints_capabilities}
     Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks.
     Only one action should be performed per task.
-    Include specifics and URLs in your response if applicable. Return the tasks as an array. Do not return a command."""
+    Include specifics and URLs in your response if applicable. Be detailed.
+    If you reference a website, you MUST include the URL in your response.
+    Return the tasks as an array. 
+    Do not return a command, only a task description. Only perform one unique task per array index."""
     response = openai_call(prompt)
     new_tasks = response.split("\n") if "\n" in response else [response]
     return [{"task_name": task_name} for task_name in new_tasks]
@@ -290,7 +309,9 @@ def prioritization_agent():
     prompt = f"""
     You are a task prioritization AI tasked with cleaning the formatting of and reprioritizing the following tasks: {task_names}.
     Consider the ultimate objective of your team:{OBJECTIVE}.
-    Do not remove any tasks. Return the result as a numbered list, like:
+    Combine and remove redundant tasks.
+    Retain all task specifics and details.
+    Return the result as a numbered list, like:
     #. First task
     #. Second task
     Start the task list with number {next_task_id}."""
@@ -331,9 +352,15 @@ while True:
         print("\033[93m\033[1m" + "\n*****ACTION*****\n" + "\033[0m\033[0m")
         print(result)
 
-        # Step 2: Send natural language result to command translator
-        command = command_translation_agent(result)
+        # Generate keywords
+        keywords = keyword_agent(result)
+        print("\033[93m\033[1m" + "\n*****KEYWORDS*****\n" + "\033[0m\033[0m")
+        print(keywords)
+
+        # Step 2: Send natural language result to command translator with keywords
+        command = command_translation_agent(result, keywords)
         print("\033[93m\033[1m" + "\n*****COMMAND*****\n" + "\033[0m\033[0m")
+        print(command)
 
         # Step 3: Execute command
         loop_count = 0
@@ -344,7 +371,7 @@ while True:
             which was generated based on the following request: {result},
             did not execute correctly and returned this error: {command_return}
             Please regenerate the command with the required modifications based on the commands list to fix the error.
-            """)
+            """, keywords)
             command_return = execute_command(new_command)
             loop_count += 1
         if loop_count >= 3:
@@ -356,16 +383,13 @@ while True:
             Ensure you are working within your constraints and capabilities and try again."""
         else:
             command_result = command_return
-        print(command)
         print("\033[93m\033[1m" + "\n*****COMMAND RESULT*****\n" + "\033[0m\033[0m")
-        print(command_return)
         print(command_result)
 
         # Step 3: Enrich result and command and store in Pinecone
         ### NOT FINISHED ###
         enriched_result = {
-            "data": f"{result}\n"
-                    f"Command: {command}\n"
+            "data": f"Command: {command}\n"
                     f"Command result: {command_result}"
         }  # This is where you should enrich the result if needed
         result_id = f"result_{task['task_id']}"
@@ -373,7 +397,7 @@ while True:
             enriched_result["data"]
         )  # get vector of the actual result extracted from the dictionary
         index.upsert(
-            [(result_id, vector, {"task": task["task_name"], "result": f"{result}\nCommand: {command}\nCommand result: {command_result}"})],
+            [(result_id, vector, {"task": task["task_name"], "result": f"Command: {command}\nCommand result: {command_result}"})],
       namespace=OBJECTIVE_PINECONE_COMPAT
         )
         #print(enriched_result)
