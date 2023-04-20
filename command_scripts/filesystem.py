@@ -103,7 +103,7 @@ def read_file(filename: str) -> str:
         if is_pdf(filepath):
             text = extract_text(filepath)
             if not text:
-                return "Error: Could not extract text from PDF"
+                return "COMMAND_ERROR: Could not extract text from PDF"
             else:
                 return text
         else:
@@ -130,7 +130,7 @@ def write_file(filename: str, text: str) -> str:
 
         if existing_filepath and (filepath != path_in_workspace(existing_filepath)):
             print(filepath)
-            return f"A file with that name already exists in a different location: {existing_filepath}. Use append_to_file instead."
+            return f"COMMAND_ERROR: A file with that name already exists in a different location: {existing_filepath}. Use append_to_file instead."
         else:
             directory = os.path.dirname(filepath)
             if not os.path.exists(directory):
@@ -158,7 +158,7 @@ def append_file(filename: str, text: str) -> str:
         existing_filepath = find_file(formatted_filename)
 
         if existing_filepath and (filepath != path_in_workspace(existing_filepath)):
-            return f"A file with that name already exists in a different location: {existing_filepath}"
+            return f"COMMAND_ERROR: A file with that name already exists in a different location: {existing_filepath}"
         else:
             directory = os.path.dirname(filepath)
             if not os.path.exists(directory):
@@ -187,9 +187,9 @@ def delete_file(filename: Union[str, List]) -> str:
                 os.remove(found_filepath)
                 files_deleted.append(os.path.basename(found_filepath))
 
-        response = f"Files {files_deleted} deleted successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
         if errors:
-            response += f"\nErrors encountered:\n" + "\n".join(errors)
+            response = f"COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
+        response += f"\nFiles {files_deleted} deleted successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
         return response
     except Exception as e:
         return handle_file_error("delete", filename, str(e))
@@ -221,9 +221,9 @@ def remove_directory(directory: Union[str, List]):
                 errors.append(dir)
             os.removedirs(dir_path)
             directories_removed.append(os.path.basename(dir))
-        response = f"Directories '{directories_removed}' removed successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
         if errors:
-            response += f"\nErrors encountered:\n" + "\n".join(errors)
+            response = f"COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
+        response += f"\nDirectories '{directories_removed}' removed successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
         return response
     except Exception as e:
         return handle_file_error("remove", directory, str(e))
@@ -244,9 +244,9 @@ def move_directory(src_directory: Union[str, List], dest_directory: str):
                     errors.append(dir)
                 shutil.move(src_path, dest_path)
                 dirs_moved.append(os.path.basename(dir))
-            response = f"Directories '{dirs_moved}' moved successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
             if errors:
-                response += f"\nErrors encountered:\n" + "\n".join(errors)
+                response = f"COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
+            response += f"Directories '{dirs_moved}' moved successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
             return response
     except Exception as e:
         return handle_file_error("move", src_directory, str(e))
@@ -264,6 +264,6 @@ def handle_file_error(operation: str, filename: str, error: str) -> str:
         str: The full error message containing the operation, filename, error, and current filesystem.
     """
     current_filesystem = list_files(WORKSPACE_PATH)
-    error_message = f"Error trying to {operation} {filename} - File likely doesn't exist. Current filesystem:\n{current_filesystem}\nError: {error}"
+    error_message = f"COMMAND_ERROR: Error trying to {operation} {filename} - File likely doesn't exist. Current filesystem:\n{current_filesystem}\nError: {error}"
     print(error_message)
     return error_message

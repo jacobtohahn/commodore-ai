@@ -7,9 +7,8 @@ from collections import deque
 from typing import Dict, List
 import time
 from constraints_capabilities import capabilities_generator
-from commandsgenerator import CommandsGenerator
+from commands import commands_generator, prepare_commands_list
 from command_scripts.execute_command import execute_command
-
 
 # Class for text colors
 class bcolors:
@@ -52,10 +51,13 @@ assert (
 COMMODORE_NAME = os.getenv("AI_NAME", "Commodore")
 
 # Get Main Objective
-OBJECTIVE = os.getenv("MAIN_OBJECTIVE", "Research nuclear fusion")
+OBJECTIVE = os.getenv("OBJECTIVE", "Research nuclear fusion")
 
 # Get the AI's constraints and capabilities
 constraints_capabilities = capabilities_generator.get_constraints_capabilities()
+
+# Prepare commands list
+prepare_commands_list()
 
 # Pinecone namespaces are only compatible with ascii characters (used in query and upsert)
 ASCII_ONLY = re.compile('[^\x00-\x7F]+')
@@ -85,7 +87,7 @@ openai.api_key = OPENAI_API_KEY
 pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
 
 # Create Pinecone index
-table_name = "Commodore-AI"
+table_name = "commodore-ai"
 dimension = 1536
 metric = "cosine"
 pod_type = "p1"
@@ -96,6 +98,9 @@ if table_name not in pinecone.list_indexes():
 
 # Connect to the index
 index = pinecone.Index(table_name)
+
+# Clear previous memories
+index.delete(delete_all=True, namespace=OBJECTIVE_PINECONE_COMPAT)
 
 # Task storage supporting only a single instance of Commodore
 class SingleTaskListStorage:
@@ -213,11 +218,15 @@ def execution_agent(objective: str, task: str) -> str:
     
     context = context_agent(query=objective, top_results_num=5)
     prompt = f"""
-    You are an AI who performs one task based on the following objective: {objective}\n.
-    Take into account these previously completed tasks: {context}\n.
-    Your task: {task}\n
-    Your response must be compatible with the following constraints and capabilities:\n
-    {constraints_capabilities}\n
+    You are an AI who determines a single task to be executed based on the following objective: {objective}.
+    Take into account these previously completed tasks: {context}.
+    Your task: {task}
+    Your response must be adhere exectly to the following constraints and capabilities:
+    {constraints_capabilities}
+    Do not generate a command.
+    Only one action should be performed. Do not use the word "and" to split up actions.
+    Only one subtask, like searching the internet or writing to a file, should be included in your response.
+    For example: "Search the internet for..." or "Browse the webpage at the URL..."
     Response:"""
     return openai_call(prompt, max_tokens=2000)
 
@@ -240,27 +249,37 @@ def context_agent(query: str, top_results_num: int):
     return [(str(item.metadata["task"])) for item in sorted_results]
 
 def command_translation_agent(command_prompt: str) -> str:
-    prompt = f"""
-    You are an AI responsible for translating a desired action into a single command
-    of a specified output format.\n
-    Your output format, which you must always adhere to, is as follows:\n
-    {CommandsGenerator.command_format}\n
-    These are your available commands:\n
-    {CommandsGenerator.get_commands()}.\n
-    If the desired action does not seem to use a command available to you, use the command no_command.\n
-    The desired action to translate is:\n
-    {command_prompt}"""
+    context = context_agent(query=command_prompt, top_results_num=5)
+    prompt = f"""You are an AI responsible for translating a desired action into a single command of a specified output format.
+This one command should only perform one action.
+Your output format, which you must exactly adhere to at all times, is as follows:
+{commands_generator.command_format}
+Do not omit any piece of this response format or add any text other than the response format.
+The response should be all on one line.
+These are your available commands:
+{commands_generator.commands}.
+You MUST use one command exclusively from the list provided above.
+If the desired action does not seem to use a command available to you, use the command no_command.
+Argument keys must be listed exactly as specified.
+Take into account these previously completed tasks: {context}.
+If the action to translate includes a website URL, use the "browse_website" command instead of "read_file".
+If the action contains multiple steps, only translate the first task.
+The desired action to translate into the response format is:
+{command_prompt}"""
     return openai_call(prompt, max_tokens=2000)
 
 def task_creation_agent(
     objective: str, result: Dict, task_description: str, task_list: List[str]
 ):
+    context = context_agent(query=objective, top_results_num=5)
     prompt = f"""
-    You are a task creation AI that uses the result of an execution agent to create new tasks with the following objective: {objective},
+    You are a task creation AI that uses the result of an execution agent to create new tasks, each performing a single action, with the following objective: {objective},
+    Take into account these previously completed tasks: {context}.
     The last completed task has the result: {result}.
     This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}.
     Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks.
-    Return the tasks as an array."""
+    Only one action should be performed per task.
+    Include specifics and URLs in your response if applicable. Return the tasks as an array. Do not return a command."""
     response = openai_call(prompt)
     new_tasks = response.split("\n") if "\n" in response else [response]
     return [{"task_name": task_name} for task_name in new_tasks]
@@ -315,16 +334,32 @@ while True:
         # Step 2: Send natural language result to command translator
         command = command_translation_agent(result)
         print("\033[93m\033[1m" + "\n*****COMMAND*****\n" + "\033[0m\033[0m")
-        print(command)
 
         # Step 3: Execute command
+        loop_count = 0
         command_return = execute_command(command)
-        if command_return == "ERROR: COMMAND NOT FOUND":
-            command_result = """The last task was not completed successfully!
+        while (str(command_return).startswith("COMMAND_ERROR:") | str(command_return).startswith("ERROR: INVALID ARGUMENTS")) and loop_count < 3:
+            new_command = command_translation_agent(f"""
+            The last command you entered, {command},
+            which was generated based on the following request: {result},
+            did not execute correctly and returned this error: {command_return}
+            Please regenerate the command with the required modifications based on the commands list to fix the error.
+            """)
+            command_return = execute_command(new_command)
+            loop_count += 1
+        if loop_count >= 3:
+            print("***************STUCK IN LOOP***************")
+            print("EXITING...")
+            exit()
+        elif command_return == "ERROR: COMMAND NOT FOUND":
+            command_result = """You this action is outside of your constraints or capabilities!\n
             Ensure you are working within your constraints and capabilities and try again."""
         else:
             command_result = command_return
-            
+        print(command)
+        print("\033[93m\033[1m" + "\n*****COMMAND RESULT*****\n" + "\033[0m\033[0m")
+        print(command_return)
+        print(command_result)
 
         # Step 3: Enrich result and command and store in Pinecone
         ### NOT FINISHED ###
@@ -341,6 +376,7 @@ while True:
             [(result_id, vector, {"task": task["task_name"], "result": f"{result}\nCommand: {command}\nCommand result: {command_result}"})],
       namespace=OBJECTIVE_PINECONE_COMPAT
         )
+        #print(enriched_result)
 
         # Step 3: Create new tasks and reprioritize task list
         new_tasks = task_creation_agent(

@@ -18,10 +18,17 @@ from webdriver_manager.firefox import GeckoDriverManager
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.safari.options import Options as SafariOptions
+from selenium.common import exceptions
 import logging
 from pathlib import Path
 
-def google(query: str, num_results: int = 8) -> str:
+def google(query: str):
+    if os.getenv("GOOGLE_API_KEY"):
+        return(google_official_search(query))
+    else: 
+        return(google_search(query))
+
+def google_search(query: str, num_results: int = 8) -> str:
     """Return the results of a google search
 
     Args:
@@ -138,7 +145,10 @@ def browse_website(url: str, question: str) -> tuple[str, WebDriver]:
     Returns:
         Tuple[str, WebDriver]: The answer and links to the user and the webdriver
     """
-    driver, text = scrape_text_with_selenium(url)
+    try:
+        driver, text = scrape_text_with_selenium(url)
+    except(exceptions.InvalidArgumentException):
+        return("COMMAND_ERROR: Invalid URL")
     add_header(driver)
     summary_text = summary.summarize_text(url, text, question, driver)
     links = scrape_links_with_selenium(driver, url)
