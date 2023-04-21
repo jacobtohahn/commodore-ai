@@ -21,24 +21,29 @@ capabilities_generator.add_constraint("""
 Only browse links that have been directly given to you by a google search
 """)
 capabilities_generator.add_constraint("""
-If a website did not provide the informatuion you needed, do not revisit it
+If a website did not provide the information you needed, do not revisit it
 """)
 capabilities_generator.add_constraint("""
 Writing to files will overwrite their content. Append to files instead to add to their content
 """)
 capabilities_generator.add_constraint("""
 The AI system can only run one command at a time, so only one action should be performed per task
-""")                                  
+""")
+capabilities_generator.add_constraint("""
+Do not create a file unless you have information to write to it
+""") 
+capabilities_generator.add_constraint("""
+No knowledge of up-to-date information without doing research
+""") 
 
 capabilities_generator.add_capability("""
-Filesystem operations, including reading, writing, appending, and deleting files,
-creating, moving, and deleting directories
+Filesystem operations to organize your thoughts and output
 """)
 capabilities_generator.add_capability("""
-Internet access by googling a search term or browsing a website URL
+Internet access to access current information
 """)
 capabilities_generator.add_capability("""
-Long Term Memory management using files, which you should create often
+Long Term Memory management using files
 """)
 capabilities_generator.add_capability("""
 Ability to browse links provided by a google search

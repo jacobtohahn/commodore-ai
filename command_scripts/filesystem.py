@@ -60,7 +60,7 @@ def list_files(path: str = WORKSPACE_PATH, level: int = 0) -> str:
                 representation += "}, "
 
     if representation.strip().rstrip(',') == "":
-        return "No files found."
+        return ""
     return representation.strip().rstrip(',')
 
 def find_file(filename: str, path: str = WORKSPACE_PATH) -> str:
