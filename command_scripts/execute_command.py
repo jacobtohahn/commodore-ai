@@ -38,32 +38,31 @@ def execute_command(command: str) -> str:
         if command_name in commands[1]:
             command_found = True
             break
-        else:
-            continue
+        continue
     try:
         if not command_found:
             return "ERROR: COMMAND NOT FOUND"
-        elif command_name == "read_file":
+        if command_name == "read_file":
             return read_file(arguments["file"])
-        elif command_name == "write_file":
+        if command_name == "write_file":
             return write_file(arguments["file"], arguments["text"])
-        elif command_name == "append_file":
+        if command_name == "append_file":
             return append_file(arguments["file"], arguments["text"])
-        elif command_name == "delete_file":
+        if command_name == "delete_file":
             return delete_file(arguments["file"])
-        elif command_name == "create_directory":
+        if command_name == "create_directory":
             return create_directory(arguments["directory"])
-        elif command_name == "remove_directory":
+        if command_name == "remove_directory":
             return remove_directory(arguments["directory"])
-        elif command_name == "move_directory":
+        if command_name == "move_directory":
             return move_directory(arguments["directory"], arguments["destination"])
-        elif command_name == "list_files":
+        if command_name == "list_files":
             return list_files()
-        elif command_name == "google":
+        if command_name == "google":
             return google(arguments["search"])
-        elif command_name == "browse_website":
+        if command_name == "browse_website":
             return browse_website(arguments["url"], arguments["search"])
-        elif command_name == "no_command":
+        if command_name == "no_command":
             return "ERROR: COMMAND NOT FOUND"
     except KeyError:
         return "ERROR: INVALID ARGUMENTS"

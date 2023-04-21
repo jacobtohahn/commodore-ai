@@ -2,25 +2,23 @@ from __future__ import annotations
 
 import json
 import os
-
+import logging
+from pathlib import Path
 from duckduckgo_search import ddg
-
-from selenium import webdriver
-from processing.html import extract_hyperlinks, format_hyperlinks
-import processing.text as summary
 from bs4 import BeautifulSoup
+from selenium import webdriver
 from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.safari.options import Options as SafariOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common import exceptions
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.firefox import GeckoDriverManager
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.safari.options import Options as SafariOptions
-from selenium.common import exceptions
-import logging
-from pathlib import Path
+from processing.html import extract_hyperlinks, format_hyperlinks
+import processing.text as summary
 
 def google(query: str):
     if os.getenv("GOOGLE_API_KEY"):
@@ -76,7 +74,7 @@ def google_official_search(query: str, num_results: int = 8) -> str | list[str]:
 
         # Send the search query and retrieve the results
         result = (
-            service.cse()
+            service.cse() # pylint: disable=maybe-no-member
             .list(q=query, cx=CUSTOM_SEARCH_ENGINE_ID, num=num_results)
             .execute()
         )

@@ -1,37 +1,40 @@
+"""Module for filesystem commands"""
 import os
-from pdfminer.high_level import extract_text
-from workspace import path_in_workspace, WORKSPACE_PATH
 from typing import List, Union
 import fnmatch
 import shutil
+from pdfminer.high_level import extract_text
+from workspace import path_in_workspace, WORKSPACE_PATH
 
 # Ensure lower_snake_case filenames
 def format_filename(filename):
     """Format a filename to be lowercase with underscores"""
     # Split the file path into directory and file name components
     directory, file_name = os.path.split(filename)
-    
+
     # Replace any spaces in the file name with underscores
     file_name = file_name.replace(' ', '_')
-    
+
     # Convert the file name to lowercase
     formatted_filename = file_name.lower()
-    
+
     # Rejoin the directory and file name components to create the full path
     if directory == "/":
         return formatted_filename
     formatted_filename = os.path.join(directory, file_name)
-    
+
     return formatted_filename
 
 def is_pdf(file_path):
+    """Check if a file is a PDF document"""
     with open(file_path, 'rb') as file:
         file_header = file.read(5)
     return file_header == b'%PDF-'
 
 def list_files(path: str = WORKSPACE_PATH, level: int = 0) -> str:
     """
-    Generate a human-readable one-line JSON-like representation of a filesystem, starting from the given path.
+    Generate a human-readable one-line JSON-like representation of a filesystem,
+    starting from the given path.
 
     Args:
         path (str, optional): The starting path of the filesystem representation.
@@ -73,13 +76,14 @@ def find_file(filename: str, path: str = WORKSPACE_PATH) -> str:
     Returns:
         str: The path to the found file or an empty string if the file is not found.
     """
-    for root, dirs, files in os.walk(path):
+    for root, _, files in os.walk(path):
         if filename in files:
             return os.path.join(root, filename)
 
     return ""
 
 def find_files(path: str = WORKSPACE_PATH, pattern: str = None) -> List[str]:
+    """Find files matching a specified pattern"""
     matched_files = []
     if not pattern:
         use_pattern = False
@@ -111,13 +115,13 @@ def read_file(filename: str) -> str:
             else:
                 return text
         else:
-            with open(filepath, "r", encoding='utf-8') as f:
-                content = f.read()
+            with open(filepath, "r", encoding='utf-8') as file:
+                content = file.read()
             if content == "":
                 return "File contains no text"
             return f"File {formatted_filename} contains: {content}"
-    except Exception as e:
-        return handle_file_error("read", filename, str(e))
+    except Exception as exc:
+        return handle_file_error("read", filename, str(exc))
 
 def write_file(filename: str, text: str) -> str:
     """Write text to a file
@@ -136,18 +140,19 @@ def write_file(filename: str, text: str) -> str:
 
         if existing_filepath and (filepath != path_in_workspace(existing_filepath)):
             print(filepath)
-            return f"COMMAND_ERROR: A file with that name already exists in a different location: {existing_filepath}. Use append_to_file instead."
-        else:
-            directory = os.path.dirname(filepath)
-            if not os.path.exists(directory):
-                os.makedirs(directory)
+            return("COMMAND_ERROR: A file with that name already exists in a different location:"
+            f" {existing_filepath}. Use append_to_file instead.")
+        directory = os.path.dirname(filepath)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(text)
-        return f"File {formatted_filename} written to successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
-    except Exception as e:
-        return handle_file_error("write", filename, str(e))
-    
+        with open(filepath, "w", encoding="utf-8") as file:
+            file.write(text)
+        return(f"File {formatted_filename} written to successfully."
+        f" Your current files are now: {list_files(WORKSPACE_PATH)}")
+    except Exception as exc:
+        return handle_file_error("write", filename, str(exc))
+
 def append_file(filename: str, text: str) -> str:
     """Append text to a file
 
@@ -164,20 +169,22 @@ def append_file(filename: str, text: str) -> str:
         existing_filepath = find_file(formatted_filename)
 
         if existing_filepath and (filepath != path_in_workspace(existing_filepath)):
-            return f"COMMAND_ERROR: A file with that name already exists in a different location: {existing_filepath}"
-        else:
-            directory = os.path.dirname(filepath)
-            if not os.path.exists(directory):
-                os.makedirs(directory)
+            return(f"COMMAND_ERROR: A file with that name already exists in a different location:"
+            f" {existing_filepath}")
+        directory = os.path.dirname(filepath)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
-        with open(filepath, "a") as f:
-            f.write(text)
+        with open(filepath, "a", encoding="utf-8") as file:
+            file.write(text)
 
-        return f"Text appended to {filename} successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
-    except Exception as e:
-        return handle_file_error("append", filename, str(e))
+        return(f"Text appended to {filename} successfully."
+        f" Your current files are now: {list_files(WORKSPACE_PATH)}")
+    except Exception as exc:
+        return handle_file_error("append", filename, str(exc))
 
 def delete_file(filename: Union[str, List]) -> str:
+    """Delete a file"""
     try:
         if isinstance(filename, str):
             filename = [filename]
@@ -194,13 +201,15 @@ def delete_file(filename: Union[str, List]) -> str:
                 files_deleted.append(os.path.basename(found_filepath))
 
         if errors:
-            response = f"COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
-        response += f"\nFiles {files_deleted} deleted successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
+            response = "COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
+        response.join(f"\nFiles {files_deleted} deleted successfully."
+                      f" Your current files are now: {list_files(WORKSPACE_PATH)}")
         return response
-    except Exception as e:
-        return handle_file_error("delete", filename, str(e))
-    
+    except Exception as exc:
+        return handle_file_error("delete", filename, str(exc))
+
 def create_directory(directory: Union[str, List]):
+    """Create a directory"""
     try:
         if isinstance(directory, str):
             directory = [directory]
@@ -210,11 +219,13 @@ def create_directory(directory: Union[str, List]):
             dir_path = path_in_workspace(dir)
             os.makedirs(dir_path, exist_ok=True)
             directories_created.append(os.path.basename(dir))
-        return f"Directories '{directories_created}' created successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
-    except Exception as e:
-        return handle_file_error("create", directory, str(e))
-    
+        return(f"Directories '{directories_created}' created successfully."
+               f" Your current files are now: {list_files(WORKSPACE_PATH)}")
+    except Exception as exc:
+        return handle_file_error("create", directory, str(exc))
+
 def remove_directory(directory: Union[str, List]):
+    """Remove a directory"""
     try:
         if isinstance(directory, str):
             directory = [directory]
@@ -228,13 +239,15 @@ def remove_directory(directory: Union[str, List]):
             os.removedirs(dir_path)
             directories_removed.append(os.path.basename(dir))
         if errors:
-            response = f"COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
-        response += f"\nDirectories '{directories_removed}' removed successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
+            response = "COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
+        response.join(f"\nDirectories '{directories_removed}' removed successfully."
+                      f" Your current files are now: {list_files(WORKSPACE_PATH)}")
         return response
-    except Exception as e:
-        return handle_file_error("remove", directory, str(e))
-    
+    except Exception as exc:
+        return handle_file_error("remove", directory, str(exc))
+
 def move_directory(src_directory: Union[str, List], dest_directory: str):
+    """Move a directory"""
     try:
         if isinstance(src_directory, str):
             src_directory = [src_directory]
@@ -251,11 +264,12 @@ def move_directory(src_directory: Union[str, List], dest_directory: str):
                 shutil.move(src_path, dest_path)
                 dirs_moved.append(os.path.basename(dir))
             if errors:
-                response = f"COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
-            response += f"Directories '{dirs_moved}' moved successfully. Your current files are now: {list_files(WORKSPACE_PATH)}"
+                response = "COMMAND_ERROR: Errors encountered:\n" + "\n".join(errors)
+            response.join(f"Directories '{dirs_moved}' moved successfully."
+                          f" Your current files are now: {list_files(WORKSPACE_PATH)}")
             return response
-    except Exception as e:
-        return handle_file_error("move", src_directory, str(e))
+    except Exception as exc:
+        return handle_file_error("move", src_directory, str(exc))
 
 def handle_file_error(operation: str, filename: str, error: str) -> str:
     """
@@ -267,9 +281,12 @@ def handle_file_error(operation: str, filename: str, error: str) -> str:
         error (str): The error message.
 
     Returns:
-        str: The full error message containing the operation, filename, error, and current filesystem.
+        str: The full error message containing the operation,
+        filename, error, and current filesystem.
     """
     current_filesystem = list_files(WORKSPACE_PATH)
-    error_message = f"COMMAND_ERROR: Error trying to {operation} {filename} - File likely doesn't exist. Current filesystem:\n{current_filesystem}\nError: {error}"
+    error_message = (f"COMMAND_ERROR: Error trying to {operation} {filename}"
+                     f" - File may not exist. Current filesystem:\n{current_filesystem}\n"
+                     f"Error: {error}")
     print(error_message)
     return error_message

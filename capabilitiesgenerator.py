@@ -31,12 +31,12 @@ class CapabilitiesGenerator:
         """
         constraints = ""
         for constraint in self.constraints:
-            constraints += f"{constraint}; "
+            constraints.join(f"{constraint}; ")
         constraints.strip('; ')
 
         capabilities = ""
         for capability in self.capabilities:
-            capabilities += f"{capability}; "
+            capabilities.join(f"{capability}; ")
         capabilities.strip('; ')
 
         constraints_capabilities = f"CONSTRAINTS: {constraints}. CAPABILITIES: {capabilities}."
