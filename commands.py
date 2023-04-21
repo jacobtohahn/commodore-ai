@@ -4,34 +4,34 @@ commands_generator = CommandsGenerator()
 
 def prepare_commands_list() -> None:
     commands_generator.add_command(
-    ["Read File", "read_file", {"file": "<file_name>"}]
+    ["Read an existing file", "read_file", {"file": "<file_name>"}]
     )
     commands_generator.add_command(
-    ["Write File", "write_file", {"file": "<file_name>", "text": "<text_to_write>"}]
+    ["Write to a file and create it if it doesn't exist", "write_file", {"file": "<file_name>", "text": "<text_to_write>"}]
     )
     commands_generator.add_command(
-    ["Append to File", "append_file", {"file": "<file_name>", "text": "<text_to_append>"}
+    ["Append to a file", "append_file", {"file": "<file_name>", "text": "<text_to_append>"}
     ])
     commands_generator.add_command(
-    ["Delete File", "delete_file", {"file": "<file_name>"}
+    ["Delete a file", "delete_file", {"file": "<file_name>"}
     ])
     commands_generator.add_command(
-    ["Create Directory", "create_directory", {"directory": "<directory>"}
+    ["Make a new directory", "create_directory", {"directory": "<directory>"}
     ])
     commands_generator.add_command(
-    ["Remove Directory", "remove_directory", {"directory": "<directory>"}
+    ["Remove an existing directory", "remove_directory", {"directory": "<directory>"}
     ])
     commands_generator.add_command(
-    ["Move Directory", "move_directory", {"directory": "<source>", "destination": "<destination>"}
+    ["Move an existing directory", "move_directory", {"directory": "<source>", "destination": "<destination>"}
     ])
     commands_generator.add_command(
-    ["List all Files", "list_files", {}
+    ["List all in all directories", "list_files", {}
     ])
     commands_generator.add_command(
-    ["Google Search", "google", {"search": "<search_term>"}
+    ["Search Google for a search phrase", "google", {"search": "<search_term>"}
     ])
     commands_generator.add_command(
-    ["Browse Website", "browse_website", {"url": "<url_to_browse>", "search": "<general_question_about_website>"}
+    ["Browse a website URL with a question about the page", "browse_website", {"url": "<url_to_browse>", "search": "<general_question_about_website>"}
     ])
     commands_generator.add_command(
     ["No Command", "no_command", {}
