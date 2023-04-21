@@ -7,7 +7,7 @@ from collections import deque
 from typing import Dict, List
 import time
 from constraints_capabilities import capabilities_generator
-from commands import commands_generator, prepare_commands_list
+from command_scripts.commands import commands_generator, prepare_commands_list
 from command_scripts.execute_command import execute_command
 
 # Class for text colors

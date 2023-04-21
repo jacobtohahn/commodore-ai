@@ -1,4 +1,4 @@
-from commandsgenerator import CommandsGenerator
+from command_scripts.commandsgenerator import CommandsGenerator
 
 commands_generator = CommandsGenerator()
 

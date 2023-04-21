@@ -1,4 +1,4 @@
-from commands import commands_generator
+from command_scripts.commands import commands_generator
 from command_scripts.filesystem import *
 from command_scripts.internet import *
 
