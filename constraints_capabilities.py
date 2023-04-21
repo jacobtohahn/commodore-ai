@@ -49,6 +49,9 @@ capabilities_generator.add_capability("""
 Filesystem operations to organize your thoughts and output, which should be utilized often
 """)
 capabilities_generator.add_capability("""
+The list files command to understand your current filesystem
+""")
+capabilities_generator.add_capability("""
 Internet access to access current information
 """)
 # capabilities_generator.add_capability("""

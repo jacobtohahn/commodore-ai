@@ -31,7 +31,7 @@ def prepare_commands_list() -> None:
     ["Google Search", "google", {"search": "<search_term>"}
     ])
     commands_generator.add_command(
-    ["Browse Website", "browse_website", {"url": "<url_to_browse>", "search": "<question_about_website>"}
+    ["Browse Website", "browse_website", {"url": "<url_to_browse>", "search": "<general_question_about_website>"}
     ])
     commands_generator.add_command(
     ["No Command", "no_command", {}

@@ -111,6 +111,6 @@ def create_message(chunk: str, question: str) -> Dict[str, str]:
     return {
         "role": "user",
         "content": f'"""{chunk}""" Using the above text, answer the following'
-        f' question: "{question}" -- if the question cannot be answered using the text,'
-        " summarize the text.",
+        f' question in great detail: "{question}" -- if the question cannot be answered using the text,'
+        " summarize the text in great detail. If the text contains a HTTP error, respond with \"HTTP ERROR\"",
     }
