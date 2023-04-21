@@ -62,22 +62,6 @@ def summarize_text(
     for i, chunk in enumerate(chunks):
         if driver:
             scroll_to_percentage(driver, scroll_ratio * i)
-        print(f"Adding chunk {i + 1} / {len(chunks)} to memory")
-
-        # Store raw contents in Pinecone
-        from commodore import index, get_ada_embedding, OBJECTIVE_PINECONE_COMPAT
-        enriched_result = {
-            "data": f"Source: {url}\n"
-                    f"Raw content part#{i + 1}: {chunk}"
-        }  # This is where you should enrich the result if needed
-        url = f"{url}"
-        vector = get_ada_embedding(
-            enriched_result["data"]
-        )  # get vector of the actual result extracted from the dictionary
-        index.upsert(
-            [(url, vector, {"source": url, "contents": f"Source: {url}\nRaw content part#{i + 1}: {chunk}"})],
-        namespace=OBJECTIVE_PINECONE_COMPAT
-        )
 
         print(f"Summarizing chunk {i + 1} / {len(chunks)}")
         messages = [create_message(chunk, question)]
@@ -87,21 +71,6 @@ def summarize_text(
             messages=messages,
         )
         summaries.append(summary)
-        print(f"Added chunk {i + 1} summary to memory")
-
-        # Store summarized contents in Pinecone
-        enriched_result = {
-            "data": f"Source: {url}\n"
-                    f"Summarized content part#{i + 1}: {summary}"
-        }  # This is where you should enrich the result if needed
-        url = f"{url}"
-        vector = get_ada_embedding(
-            enriched_result["data"]
-        )  # get vector of the actual result extracted from the dictionary
-        index.upsert(
-            [(url, vector, {"source": url, "contents": f"Source: {url}\nSummarized content part#{i + 1}: {summary}"})],
-        namespace=OBJECTIVE_PINECONE_COMPAT
-        )
 
     print(f"Summarized {len(chunks)} chunks.")
 

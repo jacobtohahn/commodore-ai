@@ -60,7 +60,7 @@ def list_files(path: str = WORKSPACE_PATH, level: int = 0) -> str:
                 representation += "}, "
 
     if representation.strip().rstrip(',') == "":
-        return "No files found"
+        return "No files found."
     return representation.strip().rstrip(',')
 
 def find_file(filename: str, path: str = WORKSPACE_PATH) -> str:
@@ -109,29 +109,13 @@ def read_file(filename: str) -> str:
             if not text:
                 return "COMMAND_ERROR: Could not extract text from PDF"
             else:
-                content = text
+                return text
         else:
             with open(filepath, "r", encoding='utf-8') as f:
                 content = f.read()
             if content == "":
                 return "File contains no text"
-            
-        # Store file contents in Pinecone
-        from commodore import index, OBJECTIVE_PINECONE_COMPAT, get_ada_embedding
-        enriched_result = {
-            "data": f"File: {formatted_filename}\n"
-                    f"Contents: {content}"
-        }  # This is where you should enrich the result if needed
-        file = f"{formatted_filename}"
-        vector = get_ada_embedding(
-            enriched_result["data"]
-        )  # get vector of the actual result extracted from the dictionary
-        index.upsert(
-            [(file, vector, {"file": formatted_filename, "contents": f"File: {formatted_filename}\nContents: {content}"})],
-        namespace=OBJECTIVE_PINECONE_COMPAT
-        )
-
-        return f"File {formatted_filename} contains: {content}"
+            return f"File {formatted_filename} contains: {content}"
     except Exception as e:
         return handle_file_error("read", filename, str(e))
 

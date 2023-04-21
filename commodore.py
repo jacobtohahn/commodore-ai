@@ -417,6 +417,7 @@ while True:
         tasks_storage.popleft()
 
         # Step 3: Enrich result and command and store in Pinecone
+        ### NOT FINISHED ###
         enriched_result = {
             "data": f"Command: {command}\n"
                     f"Command result: {command_result}"
