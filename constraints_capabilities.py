@@ -44,6 +44,9 @@ Do not forget your overall objective
 capabilities_generator.add_constraint("""
 Cite real, reputable sources in your notes
 """)
+capabilities_generator.add_constraint("""
+No ability to click links on websites, so always use a full, direct link to the subpage
+""")
 
 capabilities_generator.add_capability("""
 Filesystem operations to organize your thoughts and output, which should be utilized often
