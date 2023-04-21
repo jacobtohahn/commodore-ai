@@ -3,3 +3,4 @@ commodore_workspace/
 *.pyc
 .DS_STORE
 .venv
+.vscode

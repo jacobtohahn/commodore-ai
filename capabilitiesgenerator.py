@@ -1,3 +1,4 @@
+"""A module for generating the constraints and capabilities available to the AI"""
 class CapabilitiesGenerator:
     """
     A class for generating the constraints and capabilities available to the AI
@@ -5,7 +6,7 @@ class CapabilitiesGenerator:
     def __init__(self):
         self.constraints = []
         self.capabilities = []
-    
+
     def add_constraint(self, constraint: str) -> None:
         """
         Add a constraint to the constraints list.
@@ -14,7 +15,7 @@ class CapabilitiesGenerator:
             constraint (str): The constraint to be added.
         """
         self.constraints.append(constraint)
-    
+
     def add_capability(self, capability: str) -> None:
         """
         Add a capability to the capabilities list.

@@ -1,14 +1,35 @@
-from command_scripts.commands import commands_generator
-from command_scripts.filesystem import *
-from command_scripts.internet import *
-
+"""Module for executing a given command"""
 import ast
+from command_scripts.commands import commands_generator
+from command_scripts.filesystem import(
+    read_file,
+    write_file,
+    append_file,
+    delete_file,
+    create_directory,
+    remove_directory,
+    move_directory,
+    list_files
+)
+from command_scripts.internet import(
+    google,
+    browse_website
+)
 
 def execute_command(command: str) -> str:
+    """
+    Execute a command.
+
+    Args:
+    command (str): The command to execute.
+
+    Returns:
+    String describing the result of the executed command.
+    """
     try:
         command = ast.literal_eval(command)
     except(SyntaxError, ValueError):
-        return("ERROR: INVALID ARGUMENTS")
+        return "ERROR: INVALID ARGUMENTS"
     command_name = list(command.keys())[0]
     arguments = list(command.values())[0]
 
@@ -44,5 +65,5 @@ def execute_command(command: str) -> str:
             return browse_website(arguments["url"], arguments["search"])
         elif command_name == "no_command":
             return "ERROR: COMMAND NOT FOUND"
-    except(KeyError):
+    except KeyError:
         return "ERROR: INVALID ARGUMENTS"

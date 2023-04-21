@@ -1,17 +1,19 @@
-from dotenv import load_dotenv
+"""Main Commodore script"""
 import os
 import re
-import openai
-import pinecone
+import time
 from collections import deque
 from typing import Dict, List
-import time
+from dotenv import load_dotenv
+import openai
+import pinecone
 from constraints_capabilities import capabilities_generator
 from command_scripts.commands import commands_generator, prepare_commands_list
 from command_scripts.execute_command import execute_command
 
 # Class for text colors
-class bcolors:
+class BColors:
+    """Terminal text stying"""
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
@@ -36,7 +38,7 @@ assert OPENAI_API_KEY, "OPENAI_API_KEY environment variable is missing from .env
 OPENAI_API_MODEL = os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")
 
 # Model configuration
-OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.0))
+OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0"))
 
 # Get Pinecone Info
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
@@ -64,20 +66,20 @@ ASCII_ONLY = re.compile('[^\x00-\x7F]+')
 OBJECTIVE_PINECONE_COMPAT = re.sub(ASCII_ONLY, '', OBJECTIVE)
 
 # Get the first task to perform
-INITIAL_TASK = os.getenv("INITIAL_TASK", 
-                         os.getenv("FIRST_TASK", 
+INITIAL_TASK = os.getenv("INITIAL_TASK",
+                         os.getenv("FIRST_TASK",
                                    "Determine the current status of nuclear fusion technology")
                         )
 
 # Print the inital startup message
-print(f"{bcolors.OKGREEN}{bcolors.BOLD}\nWELCOME TO COMMODORE!\n{bcolors.ENDC}")
+print(f"{BColors.OKGREEN}{BColors.BOLD}\nWELCOME TO COMMODORE!\n{BColors.ENDC}")
 
 # Check if we know what we are doing
 assert OBJECTIVE, "OBJECTIVE environment variable is missing from .env. Cannot proceed."
 assert INITIAL_TASK, "INITIAL_TASK environment variable is missing from .env. Cannot proceed."
 
 # Print the AI configuration:
-print(f"{bcolors.OKCYAN}Current AI configuration:{bcolors.ENDC}")
+print(f"{BColors.OKCYAN}Current AI configuration:{BColors.ENDC}")
 print(f"{COMMODORE_NAME} is an AI based on {OPENAI_API_MODEL} designed to {OBJECTIVE}.\n"
       f"To do this, it will first start by performing the following task:")
 
@@ -86,66 +88,73 @@ openai.api_key = OPENAI_API_KEY
 pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENVIRONMENT)
 
 # Create Pinecone index
-table_name = "commodore-ai"
-dimension = 1536
-metric = "cosine"
-pod_type = "p1"
-if table_name not in pinecone.list_indexes():
+TABLE_NAME = "commodore-ai"
+DIMENSION = 1536
+METRIC = "cosine"
+POD_TYPE = "p1"
+if TABLE_NAME not in pinecone.list_indexes():
     pinecone.create_index(
-        table_name, dimension=dimension, metric=metric, pod_type=pod_type
+        TABLE_NAME, dimension=DIMENSION, metric=METRIC, pod_type=POD_TYPE
     )
 
 # Connect to the index
-index = pinecone.Index(table_name)
+index = pinecone.Index(TABLE_NAME)
 
 # Clear previous memories
 index.delete(delete_all=True, namespace=OBJECTIVE_PINECONE_COMPAT)
 
-# Task storage supporting only a single instance of Commodore
 class SingleTaskListStorage:
+    """Task storage supporting only a single instance of Commodore"""
     def __init__(self):
         self.tasks = deque([])
         self.task_id_counter = 0
 
-    def append(self, task: Dict):
-        self.tasks.append(task)
+    def append(self, task_to_append: Dict):
+        """Append a task to the task storage"""
+        self.tasks.append(task_to_append)
 
     def replace(self, tasks: List[Dict]):
+        """Replace tasks with a new list of tasks"""
         self.tasks = deque(tasks)
 
     def popleft(self):
+        """Remove the latest task from the task list"""
         return self.tasks.popleft()
-    
+
     def read_current(self):
+        """Read the latest task"""
         return self.tasks[0]
 
     def is_empty(self):
+        """Check if the task list is empty"""
         return False if self.tasks else True
 
     def next_task_id(self):
+        """Get the next task ID"""
         self.task_id_counter += 1
         return self.task_id_counter
 
     def get_task_names(self):
+        """Get the names of the tasks in the task list"""
         return [t["task_name"] for t in self.tasks]
-    
+
 # Initialize tasks storage
 tasks_storage = SingleTaskListStorage()
-    
-# Get embedding for the text
+
 def get_ada_embedding(text):
+    """Get embedding for the input text"""
     text = text.replace("\n", " ")
     return openai.Embedding.create(input=[text], model="text-embedding-ada-002")[
         "data"
     ][0]["embedding"]
 
-# Interface with the OpenAI API
 def openai_call(
     prompt: str,
     model: str = OPENAI_API_MODEL,
     temperature: float = OPENAI_TEMPERATURE,
     max_tokens: int = 100,
 ):
+    """Interface with the OpenAI API"""
     while True:
         try:
             if not model.startswith("gpt-"):
@@ -160,18 +169,17 @@ def openai_call(
                     presence_penalty=0,
                 )
                 return response.choices[0].text.strip()
-            else:
-                # Use chat completion API
-                messages = [{"role": "system", "content": prompt}]
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    n=1,
-                    stop=None,
-                )
-                return response.choices[0].message.content.strip()
+            # Use chat completion API
+            messages = [{"role": "system", "content": prompt}]
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                n=1,
+                stop=None,
+            )
+            return response.choices[0].message.content.strip()
         except openai.error.RateLimitError:
             print(
                 "   *** The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again. ***"
@@ -206,7 +214,13 @@ def openai_call(
             break
 
 # Define the execution agent
-def execution_agent(objective: str, task: str, context: str, previous_result: str = None, command_error: str = None) -> str:
+def execution_agent(
+        objective: str,
+        input_task: str,
+        context: str,
+        failed_result: str = None,
+        last_error: str = None
+        ) -> str:
     """
     Executes a task based on the given objective and previous context.
 
@@ -225,19 +239,19 @@ def execution_agent(objective: str, task: str, context: str, previous_result: st
     Only use valid URLs which were given by a previous Google search.
     Take into account these previously completed tasks and context: {context}.
     Use the commands available to the system to guide your response: {commands_generator.commands}.
-    Task to translate: {task}.
+    Task to translate: {input_task}.
     Your response must be within to the following constraints and capabilities:
     {constraints_capabilities}.
     Only one action should be performed. Do not use the word "and" in your response.
     Your response should be heavily based off of the given task.
     """
-    if previous_result and command_error:
-        prompt += f"The last time you generated a response, it was used to create a command which returned an error: {command_error}.\n"
-        prompt += f"Your last generated response was: {previous_result}.\n"
+    if failed_result and last_error:
+        prompt += f"The last time you generated a response, it was used to create a command which returned an error: {last_error}.\n"
+        prompt += f"Your last generated response was: {failed_result}.\n"
         prompt += "Modifiy your response so that it does not generate a command which results in an error.\n"
     prompt += "Response:"
     return openai_call(prompt.replace("\n", " "), max_tokens=2000)
-        
+
 # Get the top n completed tasks for the objective
 def context_agent(query: str, top_results_num: int):
     """
@@ -256,7 +270,7 @@ def context_agent(query: str, top_results_num: int):
     sorted_results = sorted(results.matches, key=lambda x: x.score, reverse=True)
     return [(str(item.metadata).replace("\n", " ")) for item in sorted_results]
 
-def keyword_agent(input: str):
+def keyword_agent(input_prompt: str):
     """
     Generates relevant keywords based on an input string.
     """
@@ -266,12 +280,12 @@ def keyword_agent(input: str):
     If there are multiple actions performed in the input, only focus on the first action and ignore the rest.
     When generating your keywords, ensure they are related to these commands: {commands_generator.commands}.
     "Read article" refers to browsing the internet.
-    Your prompt: {input}
+    Your prompt: {input_prompt}
     Format your response as an array of individual keywords. Only include one word per array index.
     Response:"""
     return openai_call(prompt.replace("\n", " "), max_tokens=2000)
 
-def command_translation_agent(command_prompt: str, keywords: str, previous_result: str) -> str:
+def command_translation_agent(command_prompt: str, keywords_list: str, previous_command_result: str) -> str:
     prompt = f"""You are an AI responsible for translating a task into a single command of a specified output format.
 Your output format, which you must exactly adhere to at all times, is as follows:
 {commands_generator.command_format}
@@ -288,19 +302,19 @@ If the task to translate includes a website URL, use the "browse_website" comman
 Always use the full url, including any subpages.
 If the task contains multiple steps, only translate the first step of the task.
 The task to translate into the response format is: {command_prompt}.
-Use these keywords to help you choose a command: {keywords}.
-The result of the previous command is: {previous_result}.
+Use these keywords to help you choose a command: {keywords_list}.
+The result of the previous command is: {previous_command_result}.
 ONLY GENERATE ONE COMMAND.
 Response:"""
     return openai_call(prompt.replace("\n", " "), max_tokens=2000)
 
 def task_creation_agent(
-    objective: str, result: Dict, task_description: str, task_list: List[str], context: str
+    objective: str, last_result: Dict, task_description: str, task_list: List[str], context: str
 ):
     prompt = f"""
     You are a task creation AI for an overall AI system that uses the result of an execution agent to create new tasks, each performing a single action, with the following objective: {objective},
     Take into account these previously completed tasks and context: {context}.
-    The last completed task had the result: {result}.
+    The last completed task had the result: {last_result}.
     This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}.
     Consider the commands available to the system: {commands_generator.commands}.
     Your response must adhere exectly to the following constraints and capabilities: {constraints_capabilities}
@@ -311,16 +325,16 @@ def task_creation_agent(
     Do not perform a task that has already been performed.
     Do not return a command, only a task description. Only perform one unique task per array index."""
     response = openai_call(prompt)
-    new_tasks = response.split("\n") if "\n" in response else [response]
-    return [{"task_name": task_name} for task_name in new_tasks]
+    updated_tasks = response.split("\n") if "\n" in response else [response]
+    return [{"task_name": task_name} for task_name in updated_tasks]
 
-def prioritization_agent(previous_result: str, context: str):
+def prioritization_agent(previous_command_result: str, context: str):
     task_names = tasks_storage.get_task_names()
     next_task_id = tasks_storage.next_task_id()
     prompt = f"""
     You are a task formatting AI for an overall AI system tasked with cleaning the formatting of and reprioritizing the following tasks: {task_names}.
     Consider the ultimate objective of your team:{OBJECTIVE}.
-    Also consider the result of the last completed command: {previous_result}.
+    Also consider the result of the last completed command: {previous_command_result}.
     Retain all task specifics and details.
     Do not create new tasks.
     Split tasks with multiple steps into individual tasks with one step per task, unless the tasks are to create and write a file. Those two actions are one step.
@@ -332,15 +346,15 @@ def prioritization_agent(previous_result: str, context: str):
     Do not repeat these previously completed tasks: {context}.
     Response:"""
     response = openai_call(prompt)
-    new_tasks = response.split("\n") if "\n" in response else [response]
-    new_tasks_list = []
-    for task_string in new_tasks:
+    updated_tasks = response.split("\n") if "\n" in response else [response]
+    updated_tasks_list = []
+    for task_string in updated_tasks:
         task_parts = task_string.strip().split(".", 1)
         if len(task_parts) == 2:
             task_id = task_parts[0].strip()
             task_name = task_parts[1].strip()
-            new_tasks_list.append({"task_id": task_id, "task_name": task_name})
-    tasks_storage.replace(new_tasks_list)
+            updated_tasks_list.append({"task_id": task_id, "task_name": task_name})
+    tasks_storage.replace(updated_tasks_list)
 
 # Add the initial task
 initial_task = {
@@ -349,10 +363,8 @@ initial_task = {
 }
 tasks_storage.append(initial_task)
 
-command_result = ""
-
-# Main loop
-while True:
+COMMAND_RESULT = ""
+while True: # Main loop
     # As long as there are tasks in the storage...
     if not tasks_storage.is_empty():
         # Print the task list
@@ -364,21 +376,25 @@ while True:
         task = tasks_storage.read_current()
         print("\033[92m\033[1m" + "\n*****NEXT TASK*****\n" + "\033[0m\033[0m")
         print(task['task_name'])
-        
-        command_loop_count = 0
-        command_error = None
-        previous_result = None
+
+        COMMAND_LOOP_COUNT = 0
+        COMMAND_ERROR = None
+        PREVIOUS_RESULT = None
         # Command Loop
         while True:
-            if command_loop_count >= 5:
-                print(f"{bcolors.FAIL}*****TOO MANY COMMAND ERRORS*****{bcolors.ENDC}")
+            if COMMAND_LOOP_COUNT >= 5:
+                print(f"{BColors.FAIL}*****TOO MANY COMMAND ERRORS*****{BColors.ENDC}")
                 print("Quitting...")
                 exit()
             # Send to execution function to complete the task based on the context
             execution_context = context_agent(task["task_name"], top_results_num=5)
             while True:
                 try:
-                    result = execution_agent(OBJECTIVE, task["task_name"], execution_context, previous_result, command_error)
+                    result = execution_agent(
+                        OBJECTIVE, task["task_name"],
+                        execution_context, PREVIOUS_RESULT,
+                        COMMAND_ERROR
+                        )
                     break
                 except openai.error.InvalidRequestError:
                     if len(execution_context) > 0:
@@ -386,8 +402,10 @@ while True:
                         print("Prompt too long, cutting context...")
                         execution_context = execution_context[:-1]
                         continue
-                    else: 
-                        raise RuntimeError("Execution agent prompt too long and cannot be truncated.")
+                except Exception as exc:
+                    raise RuntimeError(
+                        'Execution agent prompt too long and cannot be truncated.'
+                        ) from exc
             print("\033[93m\033[1m" + "\n*****ACTION*****\n" + "\033[0m\033[0m")
             print(result)
 
@@ -397,14 +415,14 @@ while True:
             print(keywords)
 
             # Step 2: Send natural language result to command translator with keywords
-            command = command_translation_agent(result, keywords, command_result)
+            command = command_translation_agent(result, keywords, COMMAND_RESULT)
             print("\033[93m\033[1m" + "\n*****COMMAND*****\n" + "\033[0m\033[0m")
             print(command)
 
             # Step 3: Execute command
-            loop_count = 0
+            LOOP_COUNT = 0
             command_return = execute_command(command)
-            while (str(command_return).startswith("COMMAND_ERROR:") | str(command_return).startswith("ERROR:")) and loop_count < 3:
+            while (str(command_return).startswith("COMMAND_ERROR:") | str(command_return).startswith("ERROR:")) and LOOP_COUNT < 3:
                 print("Command error, trying to fix...")
                 new_command = command_translation_agent(f"""
                 The last command you entered, {command},
@@ -412,27 +430,27 @@ while True:
                 did not execute correctly and returned this error: {command_return}
                 Ensure you are using the proper command name and arguments.
                 Please regenerate the command with the required modifications based on the commands list to fix the error. Do not change the command used, only modify the arguments.
-                """, keywords, command_result)
+                """, keywords, COMMAND_RESULT)
                 command_return = execute_command(new_command)
                 command = new_command
-                loop_count += 1
-            if loop_count >= 2:
+                LOOP_COUNT += 1
+            if LOOP_COUNT >= 2:
                 # At this point it can be assumed something was wrong with the command translation input
                 # Best solution is to restart the command loop...
-                print(f"{bcolors.WARNING}Something went wrong... restarting command loop{bcolors.ENDC}")
-                command_error = f"Command {new_command} returned: {command_return}"
-                print(command_error)
-                previous_result = result
-                loop_count = 0
-                command_loop_count += 1
+                print(f"{BColors.WARNING}Something went wrong... restarting command loop{BColors.ENDC}")
+                COMMAND_ERROR = f"Command {new_command} returned: {command_return}"
+                print(COMMAND_ERROR)
+                PREVIOUS_RESULT = result
+                LOOP_COUNT = 0
+                COMMAND_LOOP_COUNT += 1
                 time.sleep(1)
                 continue
             else:
-                command_result = command_return
-                command_loop_count = 0
+                COMMAND_RESULT = command_return
+                COMMAND_LOOP_COUNT = 0
                 break
-        print(f"{bcolors.OKGREEN}{bcolors.BOLD}\n*****COMMAND RESULT*****\n{bcolors.ENDC}")
-        print(command_result)
+        print(f"{BColors.OKGREEN}{BColors.BOLD}\n*****COMMAND RESULT*****\n{BColors.ENDC}")
+        print(COMMAND_RESULT)
 
         # Now that we know the task was completed successfully, we can remove it from the list
         tasks_storage.popleft()
@@ -444,14 +462,14 @@ while True:
             enriched_result = {"data": command}
         else:
             enriched_result = {
-                "data": str(command_result)
+                "data": str(COMMAND_RESULT)
             }  # This is where you should enrich the result if needed
         result_id = f"result_{task['task_id']}"
         vector = get_ada_embedding(
             enriched_result["data"]
         )  # get vector of the actual result extracted from the dictionary
         index.upsert(
-            [(result_id, vector, {"task": task["task_name"], "result": str(command_result)})],
+            [(result_id, vector, {"task": task["task_name"], "result": str(COMMAND_RESULT)})],
       namespace=OBJECTIVE_PINECONE_COMPAT
         )
 
@@ -468,17 +486,19 @@ while True:
                 )
                 break
             except openai.error.InvalidRequestError:
-                    if len(task_creation_context) > 0:
-                        # If we're sending to much data, cut some context
-                        print("Prompt too long, cutting context...")
-                        task_creation_context = task_creation_context[:-1]
-                        continue
-                    else: 
-                        raise RuntimeError("Task creation agent prompt too long and cannot be truncated.")
+                if len(task_creation_context) > 0:
+                    # If we're sending to much data, cut some context
+                    print("Prompt too long, cutting context...")
+                    task_creation_context = task_creation_context[:-1]
+                    continue
+            except Exception as exc:
+                raise RuntimeError(
+                    "Task creation agent prompt too long and cannot be truncated."
+                    ) from exc
         for new_task in new_tasks:
             new_task.update({"task_id": tasks_storage.next_task_id()})
             tasks_storage.append(new_task)
-        prioritization_context = context_agent(query=str(previous_result), top_results_num=5)
+        prioritization_context = context_agent(query=str(PREVIOUS_RESULT), top_results_num=5)
         while True:
             try:
                 prioritization_agent(enriched_result, prioritization_context)
@@ -489,7 +509,9 @@ while True:
                     print("Prompt too long, cutting context...")
                     prioritization_context = prioritization_context[:-1]
                     continue
-                else: 
-                    raise RuntimeError("Task creation agent prompt too long and cannot be truncated.")
+            except Exception as exc:
+                raise RuntimeError(
+                    "Task creation agent prompt too long and cannot be truncated."
+                    ) from exc
 
     time.sleep(5)  # Sleep before checking the task list again
