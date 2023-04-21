@@ -222,6 +222,7 @@ def execution_agent(objective: str, task: str, context: str, previous_result: st
     Using the task, generate an output action that obeys the given constraints, capabilities, commands, and previous tasks.
     If the task contains a website URL or article, your action should involve browsing the internet.
     Always include the full URL to any website you mention.
+    Only use valid URLs which were given by a previous Google search.
     Take into account these previously completed tasks and context: {context}.
     Use the commands available to the system to guide your response: {commands_generator.commands}.
     Task to translate: {task}.
@@ -327,7 +328,7 @@ def prioritization_agent(previous_result: str, context: str):
     Return the result as a numbered list, like:
     #. First task
     #. Second task
-    Start the task list with number {next_task_id}.
+    Always start the task list with number {next_task_id}.
     Do not repeat these previously completed tasks: {context}.
     Response:"""
     response = openai_call(prompt)
@@ -413,6 +414,7 @@ while True:
                 Please regenerate the command with the required modifications based on the commands list to fix the error. Do not change the command used, only modify the arguments.
                 """, keywords, command_result)
                 command_return = execute_command(new_command)
+                command = new_command
                 loop_count += 1
             if loop_count >= 2:
                 # At this point it can be assumed something was wrong with the command translation input
@@ -437,9 +439,13 @@ while True:
 
         # Step 3: Enrich result and command and store in Pinecone
         ### NOT FINISHED ###
-        enriched_result = {
-            "data": str(command_result)
-        }  # This is where you should enrich the result if needed
+        # Don't store the entire google result in memory, which should hopefully cut context length
+        if command == "google":
+            enriched_result = {"data": command}
+        else:
+            enriched_result = {
+                "data": str(command_result)
+            }  # This is where you should enrich the result if needed
         result_id = f"result_{task['task_id']}"
         vector = get_ada_embedding(
             enriched_result["data"]
