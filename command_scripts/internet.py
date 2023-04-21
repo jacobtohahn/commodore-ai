@@ -119,7 +119,9 @@ def get_browser_instance() -> WebDriver:
         options.add_argument(
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.49 Safari/537.36"
         )
-        options.add_argument("--headless")  # Add headless argument to hide the browser
+        
+        if os.getenv("HIDE_BROWSER", "False") == "True":
+            options.add_argument("--headless")  # Add headless argument to hide the browser
 
         if os.getenv("SELENIUM_WEB_BROWSER", "") == "firefox":
             browser = webdriver.Firefox(
@@ -135,7 +137,7 @@ def get_browser_instance() -> WebDriver:
     return browser
 
 
-def browse_website(url: str, question: str) -> tuple[str, WebDriver]:
+def browse_website(url: str, question: str = "") -> tuple[str, WebDriver]:
     """Browse a website and return the answer and links to the user
 
     Args:
@@ -157,8 +159,11 @@ def browse_website(url: str, question: str) -> tuple[str, WebDriver]:
     # if len(links) > 5:
     #     links = links[:5]
 
+    if os.getenv("HIDE_BROWSER", "False") == "False":
+        close_browser(driver)
+
     # return f"Answer gathered from website: {summary_text} \n \n Links: {links}", driver
-    return f"Answer gathered from website: {summary_text}", driver
+    return f"Answer gathered from website: {summary_text}"
 
 def scrape_text_with_selenium(url: str) -> tuple[WebDriver, str]:
     """Scrape text from a website using selenium
@@ -208,18 +213,6 @@ def scrape_links_with_selenium(driver: WebDriver, url: str) -> list[str]:
     hyperlinks = extract_hyperlinks(soup, url)
 
     return format_hyperlinks(hyperlinks)
-
-
-def close_browser(driver: WebDriver) -> None:
-    """Close the browser
-
-    Args:
-        driver (WebDriver): The webdriver to close
-
-    Returns:
-        None
-    """
-    driver.quit()
 
 
 def add_header(driver: WebDriver) -> None:
