@@ -151,14 +151,14 @@ def browse_website(url: str, question: str) -> tuple[str, WebDriver]:
         return("COMMAND_ERROR: Invalid URL")
     add_header(driver)
     summary_text = summary.summarize_text(url, text, question, driver)
-    links = scrape_links_with_selenium(driver, url)
+    # links = scrape_links_with_selenium(driver, url)
 
-    # Limit links to 5
-    if len(links) > 5:
-        links = links[:5]
+    # # Limit links to 5
+    # if len(links) > 5:
+    #     links = links[:5]
 
-    return f"Answer gathered from website: {summary_text} \n \n Links: {links}", driver
-
+    # return f"Answer gathered from website: {summary_text} \n \n Links: {links}", driver
+    return f"Answer gathered from website: {summary_text}", driver
 
 def scrape_text_with_selenium(url: str) -> tuple[WebDriver, str]:
     """Scrape text from a website using selenium

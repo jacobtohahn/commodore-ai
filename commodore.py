@@ -70,7 +70,7 @@ INITIAL_TASK = os.getenv("INITIAL_TASK",
                         )
 
 # Print the inital startup message
-print(f"{bcolors.OKGREEN}{bcolors.BOLD}WELCOME TO COMMODORE!{bcolors.ENDC}")
+print(f"{bcolors.OKGREEN}{bcolors.BOLD}\nWELCOME TO COMMODORE!\n{bcolors.ENDC}")
 
 # Check if we know what we are doing
 assert OBJECTIVE, "OBJECTIVE environment variable is missing from .env. Cannot proceed."
@@ -235,7 +235,7 @@ def execution_agent(objective: str, task: str, previous_result: str = None, comm
         prompt += f"Your last generated response was: {previous_result}.\n"
         prompt += "Modifiy your response so that it does not generate a command which results in an error.\n"
     prompt += "Response:"
-    return openai_call(prompt, max_tokens=2000)
+    return openai_call(prompt.replace("\n", " "), max_tokens=2000)
 
 # Get the top n completed tasks for the objective
 def context_agent(query: str, top_results_num: int):
@@ -253,7 +253,7 @@ def context_agent(query: str, top_results_num: int):
     query_embedding = get_ada_embedding(query)
     results = index.query(query_embedding, top_k=top_results_num, include_metadata=True, namespace=OBJECTIVE_PINECONE_COMPAT)
     sorted_results = sorted(results.matches, key=lambda x: x.score, reverse=True)
-    return [(str(item.metadata)) for item in sorted_results]
+    return [(str(item.metadata).replace("\n", " ")) for item in sorted_results]
 
 def keyword_agent(input: str):
     """
@@ -266,17 +266,18 @@ def keyword_agent(input: str):
     If there are multiple actions performed in the input, only focus on the first action and ignore the rest.
     When generating your keywords, ensure they are related to these commands: {commands_generator.commands}.
     Take into account these previously completed tasks and context: {context}.
+    "Read article" refers to browsing the internet.
     Your prompt: {input}
     Format your response as an array of individual keywords. Only include one word per array index.
     Response:"""
-    return openai_call(prompt, max_tokens=2000)
+    return openai_call(prompt.replace("\n", " "), max_tokens=2000)
 
 def command_translation_agent(command_prompt: str, keywords: str) -> str:
     context = context_agent(query=command_prompt, top_results_num=5)
     prompt = f"""You are an AI responsible for translating a task into a single command of a specified output format.
 Your output format, which you must exactly adhere to at all times, is as follows:
 {commands_generator.command_format}
-Do not omit any piece of this response format or add any text other than the response format.
+Do not omit any piece of this response format or add any text other than the response format. Fill in the placeholder values with the actual command you want to use.
 The response should be all on one line.
 These are your available commands:
 {commands_generator.commands}.
@@ -292,7 +293,7 @@ The task to translate into the response format is: {command_prompt}.
 Use these keywords to help you choose a command: {keywords}.
 ONLY GENERATE ONE COMMAND.
 Response:"""
-    return openai_call(prompt, max_tokens=2000)
+    return openai_call(prompt.replace("\n", " "), max_tokens=2000)
 
 def task_creation_agent(
     objective: str, result: Dict, task_description: str, task_list: List[str]
@@ -305,10 +306,11 @@ def task_creation_agent(
     This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}.
     Consider the commands available to the system: {commands_generator.commands}.
     Your response must adhere exectly to the following constraints and capabilities: {constraints_capabilities}
-    Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks.
+    Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete or completed tasks.
     Include specifics and full URLs in your response if applicable. Be detailed.
     If you reference a website, you MUST include the entire URL in your response.
     Return the tasks as an array. 
+    Do not perform a task that has already been performed.
     Do not return a command, only a task description. Only perform one unique task per array index."""
     response = openai_call(prompt)
     new_tasks = response.split("\n") if "\n" in response else [response]
@@ -369,7 +371,7 @@ while True:
         previous_result = None
         # Command Loop
         while True:
-            if command_loop_count >= 3:
+            if command_loop_count >= 5:
                 print(f"{bcolors.FAIL}*****TOO MANY COMMAND ERRORS*****{bcolors.ENDC}")
                 print("Quitting...")
                 exit()
@@ -407,11 +409,13 @@ while True:
                 command_error = f"Command {new_command} returned: {command_return}"
                 print(command_error)
                 previous_result = result
+                loop_count = 0
                 command_loop_count += 1
                 time.sleep(1)
                 continue
             else:
                 command_result = command_return
+                command_loop_count = 0
                 break
         print(f"{bcolors.OKGREEN}{bcolors.BOLD}\n*****COMMAND RESULT*****\n{bcolors.ENDC}")
         print(command_result)
@@ -422,15 +426,14 @@ while True:
         # Step 3: Enrich result and command and store in Pinecone
         ### NOT FINISHED ###
         enriched_result = {
-            "data": f"Command: {command}\n"
-                    f"Command result: {command_result}"
+            "data": str(command_result)
         }  # This is where you should enrich the result if needed
         result_id = f"result_{task['task_id']}"
         vector = get_ada_embedding(
             enriched_result["data"]
         )  # get vector of the actual result extracted from the dictionary
         index.upsert(
-            [(result_id, vector, {"task": task["task_name"], "result": f"Command: {command}\nCommand result: {command_result}"})],
+            [(result_id, vector, {"task": task["task_name"], "result": str(command_result)})],
       namespace=OBJECTIVE_PINECONE_COMPAT
         )
 
