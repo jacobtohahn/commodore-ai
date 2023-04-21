@@ -382,6 +382,7 @@ while True:
                 except openai.error.InvalidRequestError:
                     if len(execution_context) > 0:
                         # If we're sending to much data, cut some context
+                        print("Prompt too long, cutting context...")
                         execution_context = execution_context[:-1]
                         continue
                     else: 
@@ -463,6 +464,7 @@ while True:
             except openai.error.InvalidRequestError:
                     if len(task_creation_context) > 0:
                         # If we're sending to much data, cut some context
+                        print("Prompt too long, cutting context...")
                         task_creation_context = task_creation_context[:-1]
                         continue
                     else: 
@@ -478,6 +480,7 @@ while True:
             except openai.error.InvalidRequestError:
                 if len(task_creation_context) > 0:
                     # If we're sending to much data, cut some context
+                    print("Prompt too long, cutting context...")
                     prioritization_context = prioritization_context[:-1]
                     continue
                 else: 
